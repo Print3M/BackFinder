@@ -1,0 +1,16 @@
+{
+  "dependencies": {
+    "@types/frida-gum": "^19.7.0",
+    "frida": "^17.15.3",
+    "frida-compile": "^19.0.5",
+    "typescript": "^5"
+  },
+  "name": "backfinder",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
