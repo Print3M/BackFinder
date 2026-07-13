@@ -1,5 +1,6 @@
 export type NtBaseEvent = {
     fn: "UNKNOWN"
+    status: number
 }
 
 export type NtCreateFileEvent = {
@@ -26,4 +27,44 @@ export type NtCreateUserProcessEvent = {
     status: number
 }
 
-export type NtEvent = NtBaseEvent | NtCreateFileEvent | NtOpenFileEvent | NtCreateUserProcessEvent
+export type NtQueryAttributesFileEvent = {
+    fn: "NtQueryAttributesFile"
+    path: string
+    status: number
+}
+
+export type NtQueryFullAttributesFileEvent = {
+    fn: "NtQueryFullAttributesFile"
+    path: string
+    status: number
+}
+
+export type NtDeleteFileEvent = {
+    fn: "NtDeleteFile"
+    path: string
+    status: number
+}
+
+export type RtlSetCurrentDirectory_UEvent = {
+    fn: "RtlSetCurrentDirectory_U"
+    path: string
+    status: number
+}
+
+export type LdrLoadDllEvent = {
+    fn: "LdrLoadDll"
+    dllPath: string
+    dllName: string
+    status: number
+}
+
+export type NtEvent =
+    | NtBaseEvent
+    | NtCreateFileEvent
+    | NtOpenFileEvent
+    | NtCreateUserProcessEvent
+    | NtQueryAttributesFileEvent
+    | NtQueryFullAttributesFileEvent
+    | NtDeleteFileEvent
+    | RtlSetCurrentDirectory_UEvent
+    | LdrLoadDllEvent

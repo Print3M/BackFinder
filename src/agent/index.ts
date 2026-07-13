@@ -1,83 +1,202 @@
 import { readIoStatusBlock } from "../ntdll/NtCreateFileIoStatus"
 import { readObjectAttributes } from "../ntdll/ObjectAttributes"
 import { readRtlUserProcessParameters } from "../ntdll/RtlUserProcessParameters"
-import type { NtCreateFileEvent, NtCreateUserProcessEvent, NtOpenFileEvent } from "../shared/types"
+import type {
+    LdrLoadDllEvent,
+    NtCreateFileEvent,
+    NtCreateUserProcessEvent,
+    NtDeleteFileEvent,
+    NtOpenFileEvent,
+    NtQueryAttributesFileEvent,
+    NtQueryFullAttributesFileEvent,
+    RtlSetCurrentDirectory_UEvent,
+} from "../shared/types"
+import { readUnicodeString, readWString } from "../shared/strings"
 
 const NTDLL = Process.getModuleByName("ntdll.dll")
 
-const pNtCreateFile = NTDLL.getExportByName("NtCreateFile")
+type AttachCtx<TEnter, TSend> = {
+    fn: string
+    onEnter: (args: InvocationArguments) => TEnter
+    onLeave: (data: TEnter, retval: InvocationReturnValue) => TSend
+}
 
-Interceptor.attach(pNtCreateFile, {
+const attach = <TEnter, TSend>(ctx: AttachCtx<TEnter, TSend>) => {
+    const pFunc = NTDLL.getExportByName(ctx.fn)
+
+    Interceptor.attach(pFunc, {
+        onEnter(args) {
+            const data = ctx.onEnter(args)
+            Object.assign(this, data)
+        },
+        onLeave(retval) {
+            const data = ctx.onLeave(this as TEnter, retval)
+            send(data)
+        },
+    })
+
+    console.log(`[agent] ${ctx.fn} hooked in pid ` + Process.id)
+}
+
+attach({
+    fn: "NtCreateFile",
     onEnter(args) {
-        this.desiredAccess = args[1]!.toUInt32()
-        this.path = readObjectAttributes(args[2]!).objectName
-        this.pIoStatus = args[3]
-        this.objectAttributes = args[2]!.toUInt32()
-        this.createDisposition = args[7]!.toUInt32()
+        return {
+            desiredAccess: args[1]!.toUInt32(),
+            path: readObjectAttributes(args[2]!).objectName,
+            pIoStatus: args[3]!,
+            objectAttributes: args[2]!.toUInt32(),
+            createDisposition: args[7]!.toUInt32(),
+        }
     },
-    onLeave(retval) {
-        const { information } = readIoStatusBlock(this.pIoStatus)
+    onLeave(data, retval) {
+        const { information } = readIoStatusBlock(data.pIoStatus)
         const status = retval.toUInt32() >>> 0
 
-        const event: NtCreateFileEvent = {
+        return {
             fn: "NtCreateFile",
-            path: this.path,
-            desiredAccess: this.desiredAccess,
-            createDisposition: this.createDisposition,
+            path: data.path,
+            desiredAccess: data.desiredAccess,
+            createDisposition: data.createDisposition,
             ioStatusBlockInformation: information,
             status,
-        }
-        send(event)
+        } satisfies NtCreateFileEvent
     },
 })
 
-console.log("[agent] NtCreateFile hooked in pid " + Process.id)
-
-const pNtOpenFile = NTDLL.getExportByName("NtOpenFile")
-
-Interceptor.attach(pNtOpenFile, {
+attach({
+    fn: "NtOpenFile",
     onEnter(args) {
-        this.desiredAccess = args[1]!.toUInt32()
-        this.path = readObjectAttributes(args[2]!).objectName
-        this.pIoStatus = args[3]
+        return {
+            desiredAccess: args[1]!.toUInt32(),
+            path: readObjectAttributes(args[2]!).objectName,
+            pIoStatus: args[3]!,
+        }
     },
-    onLeave(retval) {
-        const { information } = readIoStatusBlock(this.pIoStatus)
+    onLeave(data, retval) {
+        const { information } = readIoStatusBlock(data.pIoStatus)
         const status = retval.toUInt32() >>> 0
 
-        const event: NtOpenFileEvent = {
+        return {
             fn: "NtOpenFile",
-            path: this.path,
-            desiredAccess: this.desiredAccess,
+            path: data.path,
+            desiredAccess: data.desiredAccess,
             ioStatusBlockInformation: information,
             status,
-        }
-        send(event)
+        } satisfies NtOpenFileEvent
     },
 })
 
-console.log("[agent] NtOpenFile hooked in pid " + Process.id)
-
-const pNtCreateUserProcess = NTDLL.getExportByName("NtCreateUserProcess")
-
-Interceptor.attach(pNtCreateUserProcess, {
+attach({
+    fn: "NtCreateUserProcess",
     onEnter(args) {
         const rtlUserProcessParameters = readRtlUserProcessParameters(args[8]!)
 
-        this.imagePath = rtlUserProcessParameters.imagePathName
-        this.commandLine = rtlUserProcessParameters.commandLine
+        return {
+            imagePath: rtlUserProcessParameters.imagePathName,
+            commandLine: rtlUserProcessParameters.commandLine,
+        }
     },
-    onLeave(retval) {
+    onLeave(data, retval) {
         const status = retval.toUInt32() >>> 0
 
-        const event: NtCreateUserProcessEvent = {
+        return {
             fn: "NtCreateUserProcess",
             status,
-            imagePath: this.imagePath,
-            commandLine: this.commandLine,
-        }
-        send(event)
+            imagePath: data.imagePath,
+            commandLine: data.commandLine,
+        } satisfies NtCreateUserProcessEvent
     },
 })
 
-console.log("[agent] NtCreateUserProccess hooked in pid " + Process.id)
+attach({
+    fn: "NtQueryAttributesFile",
+    onEnter(args) {
+        return {
+            path: readObjectAttributes(args[0]!).objectName,
+        }
+    },
+    onLeave(data, retval) {
+        const status = retval.toUInt32() >>> 0
+
+        return {
+            fn: "NtQueryAttributesFile",
+            path: data.path,
+            status,
+        } satisfies NtQueryAttributesFileEvent
+    },
+})
+
+attach({
+    fn: "NtQueryFullAttributesFile",
+    onEnter(args) {
+        return {
+            path: readObjectAttributes(args[0]!).objectName,
+        }
+    },
+    onLeave(data, retval) {
+        const status = retval.toUInt32() >>> 0
+
+        return {
+            fn: "NtQueryFullAttributesFile",
+            path: data.path,
+            status,
+        } satisfies NtQueryFullAttributesFileEvent
+    },
+})
+
+attach({
+    fn: "NtDeleteFile",
+    onEnter(args) {
+        return {
+            path: readObjectAttributes(args[0]!).objectName,
+        }
+    },
+    onLeave(data, retval) {
+        const status = retval.toUInt32() >>> 0
+
+        return {
+            fn: "NtDeleteFile",
+            path: data.path,
+            status,
+        } satisfies NtDeleteFileEvent
+    },
+})
+
+attach({
+    fn: "RtlSetCurrentDirectory_U",
+    onEnter(args) {
+        return {
+            path: readUnicodeString(args[0]!),
+        }
+    },
+    onLeave(data, retval) {
+        const status = retval.toUInt32() >>> 0
+
+        return {
+            fn: "RtlSetCurrentDirectory_U",
+            path: data.path,
+            status,
+        } satisfies RtlSetCurrentDirectory_UEvent
+    },
+})
+
+attach({
+    fn: "LdrLoadDll",
+    onEnter(args) {
+        return {
+            dllPath: readWString(args[0]!),
+            dllName: readUnicodeString(args[2]!)
+        }
+    },
+    onLeave(data, retval) {
+        const status = retval.toUInt32() >>> 0
+
+        return {
+            fn: "LdrLoadDll",
+            dllPath: data.dllPath,
+            dllName: data.dllName,
+            status,
+        } satisfies LdrLoadDllEvent
+    },
+})

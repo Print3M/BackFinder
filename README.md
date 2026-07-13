@@ -16,5 +16,30 @@ Vulnerabilities to output (`--only-writable`):
 - Spawning shell with writable .ps1, .cmd
 
 ```text
-NtQueryDirectoryFile, NtQueryDirectoryFileEx, NtQueryInformationFile, NtSetInformationFile, NtQueryAttributesFile, NtQueryFullAttributesFile, NtDeleteFile, NtClose
+
+--- No handle ---
++ NtCreateFile              
++ NtOpenFile                
++ NtCreateUserProcess
++ NtQueryAttributesFile       
++ NtQueryFullAttributesFile   
++ NtDeleteFile                
++ RtlSetCurrentDirectory_U
++ LdrLoadDll
+
+LoadLibrary / LoadModule
+
+--- Handle required ---
+NtQueryDirectoryFile        
+NtQueryDirectoryFileEx      
+NtQueryInformationFile      
+NtSetInformationFile        
+NtClose                     
+
+--- Not applicable ---
+NtCreateProcess             (copy process, not loading image)      
+NtCreateProcessEx           (copy process, not loading image)
+NtOpenDirectoryObject       (nothing to do with the filesystem)
+NtCreateDirectoryObject     (nothing to do with the filesystem)
+NtCreateDirectoryObjectEx   (nothing to do with the filesystem)
 ```

@@ -20,3 +20,13 @@ export const unicodeStringToStr = (str: UnicodeString): string => {
 
     return str.buffer.readUtf16String(str.length / 2) ?? "<unreadable>"
 }
+
+export const readWString = (ptr: NativePointer): string => {
+    if (ptr.isNull()) return ""
+
+    try {
+        return ptr.readUtf16String() ?? ""
+    } catch {
+        return "<unreadable>"
+    }
+}

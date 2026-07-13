@@ -1,6 +1,6 @@
 // Docs:
 // https://learn.microsoft.com/en-us/windows/win32/api/winternl/ns-winternl-rtl_user_process_parameters
-import { readUnicodeString } from "../shared/unicode"
+import { readUnicodeString } from "../shared/strings"
 
 export type RtlUserProcessParameters = {
     imagePathName: string

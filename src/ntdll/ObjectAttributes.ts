@@ -1,6 +1,6 @@
 // Docs:
 // https://learn.microsoft.com/en-us/windows/win32/api/ntdef/ns-ntdef-_object_attributes
-import { readUnicodeString } from "../shared/unicode"
+import { readUnicodeString } from "../shared/strings"
 
 export type ObjectAttributes = {
     objectName: string

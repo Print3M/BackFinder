@@ -1,11 +1,16 @@
 // main.ts
 import * as frida from "frida"
 import { readFileSync } from "fs"
-import {
-    type NtCreateFileEvent,
-    type NtCreateUserProcessEvent,
-    type NtEvent,
-    type NtOpenFileEvent,
+import type {
+    LdrLoadDllEvent,
+    NtCreateFileEvent,
+    NtCreateUserProcessEvent,
+    NtDeleteFileEvent,
+    NtEvent,
+    NtOpenFileEvent,
+    NtQueryAttributesFileEvent,
+    NtQueryFullAttributesFileEvent,
+    RtlSetCurrentDirectory_UEvent,
 } from "./shared/types"
 import { createDispositionToStr } from "./ntdll/CreateDisposition"
 import { ntStatusToStr } from "./ntdll/NtStatus"
@@ -50,6 +55,42 @@ const handleNtCreateUserProcess = (event: NtCreateUserProcessEvent) => {
     console.log()
 }
 
+const handleNtQueryAttributesFile = (event: NtQueryAttributesFileEvent) => {
+    console.log("[NtQueryAttributesFile]")
+    console.log(`\tPath: ${event.path}`)
+    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
+    console.log()
+}
+
+const handleNtQueryFullAttributesFile = (event: NtQueryFullAttributesFileEvent) => {
+    console.log("[NtQueryFullAttributesFile]")
+    console.log(`\tPath: ${event.path}`)
+    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
+    console.log()
+}
+
+const handleNtDeleteFile = (event: NtDeleteFileEvent) => {
+    console.log("[NtDeleteFile]")
+    console.log(`\tPath: ${event.path}`)
+    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
+    console.log()
+}
+
+const handleRtlSetCurrentDirectory_U = (event: RtlSetCurrentDirectory_UEvent) => {
+    console.log("[RtlSetCurrentDirectory_U]")
+    console.log(`\tPath: ${event.path}`)
+    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
+    console.log()
+}
+
+const handleLdrLoadDll = (event: LdrLoadDllEvent) => {
+    console.log("[LdrLoadDll]")
+    console.log(`\tDllPath: ${event.dllPath}`)
+    console.log(`\tDllName: ${event.dllName}`)
+    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
+    console.log()
+}
+
 export const main = async () => {
     // Read agent script compiled by frida-compile
     const source = readFileSync("agent.js", "utf8")
@@ -78,6 +119,21 @@ export const main = async () => {
                 break
             case "NtCreateUserProcess":
                 handleNtCreateUserProcess(event)
+                break
+            case "NtQueryAttributesFile":
+                handleNtQueryAttributesFile(event)
+                break
+            case "NtQueryFullAttributesFile":
+                handleNtQueryFullAttributesFile(event)
+                break
+            case "NtDeleteFile":
+                handleNtDeleteFile(event)
+                break
+            case "RtlSetCurrentDirectory_U":
+                handleRtlSetCurrentDirectory_U(event)
+                break
+            case "LdrLoadDll":
+                handleLdrLoadDll(event)
                 break
         }
     })
