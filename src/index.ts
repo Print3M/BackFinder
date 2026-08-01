@@ -1,95 +1,10 @@
 // main.ts
 import * as frida from "frida"
 import { readFileSync } from "fs"
-import type {
-    LdrLoadDllEvent,
-    NtCreateFileEvent,
-    NtCreateUserProcessEvent,
-    NtDeleteFileEvent,
-    NtEvent,
-    NtOpenFileEvent,
-    NtQueryAttributesFileEvent,
-    NtQueryFullAttributesFileEvent,
-    RtlSetCurrentDirectory_UEvent,
-} from "./shared/types"
-import { createDispositionToStr } from "./ntdll/CreateDisposition"
-import { ntStatusToStr } from "./ntdll/NtStatus"
-import { desiredAccessToStr } from "./ntdll/DesiredAccess"
-import { getExtension } from "./shared/utils"
-import { ntCreateFileIoStatusInformationToStr } from "./ntdll/NtCreateFileIoStatus"
+import type { NtEvent } from "./shared/types"
+import AgentEventHandler from "./AgentEventHandler"
 
 const TARGET = "C:\\programs\\Notepad++\\notepad++.exe"
-
-// TODO: Move it to OOP
-const handleNtCreateFile = (event: NtCreateFileEvent) => {
-    const ext = getExtension(event.path)
-    if (!["bat", "cmd", "vbs", "js", "exe", "msi", "ps1"].includes(ext)) return
-
-    console.log("[NtCreateFile]")
-    console.log(`\tPath: ${event.path}`)
-    console.log(`\tCreateDisposition: ${createDispositionToStr(event.createDisposition)}`)
-    console.log(
-        `\tIoStatusBlock.Information: ${ntCreateFileIoStatusInformationToStr(event.ioStatusBlockInformation)}`,
-    )
-    console.log(`\tDesiredAccess: ${desiredAccessToStr(event.desiredAccess)}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
-
-const handleNtOpenFile = (event: NtOpenFileEvent) => {
-    console.log("[NtOpenFile]")
-    console.log(`\tPath: ${event.path}`)
-    console.log(
-        `\tIoStatusBlock.Information: ${ntCreateFileIoStatusInformationToStr(event.ioStatusBlockInformation)}`,
-    )
-    console.log(`\tDesiredAccess: ${desiredAccessToStr(event.desiredAccess)}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
-
-const handleNtCreateUserProcess = (event: NtCreateUserProcessEvent) => {
-    console.log("[NtCreateUserProcess]")
-    console.log(`\tImage path: ${event.imagePath}`)
-    console.log(`\tCommand line: ${event.commandLine}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
-
-const handleNtQueryAttributesFile = (event: NtQueryAttributesFileEvent) => {
-    console.log("[NtQueryAttributesFile]")
-    console.log(`\tPath: ${event.path}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
-
-const handleNtQueryFullAttributesFile = (event: NtQueryFullAttributesFileEvent) => {
-    console.log("[NtQueryFullAttributesFile]")
-    console.log(`\tPath: ${event.path}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
-
-const handleNtDeleteFile = (event: NtDeleteFileEvent) => {
-    console.log("[NtDeleteFile]")
-    console.log(`\tPath: ${event.path}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
-
-const handleRtlSetCurrentDirectory_U = (event: RtlSetCurrentDirectory_UEvent) => {
-    console.log("[RtlSetCurrentDirectory_U]")
-    console.log(`\tPath: ${event.path}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
-
-const handleLdrLoadDll = (event: LdrLoadDllEvent) => {
-    console.log("[LdrLoadDll]")
-    console.log(`\tDllPath: ${event.dllPath}`)
-    console.log(`\tDllName: ${event.dllName}`)
-    console.log(`\tStatus: ${ntStatusToStr(event.status)}`)
-    console.log()
-}
 
 export const main = async () => {
     // Read agent script compiled by frida-compile
@@ -102,40 +17,29 @@ export const main = async () => {
     const session = await device.attach(pid)
     const script = await session.createScript(source)
 
+    // Serialize handling so each message's async work (e.g. #checkACL's
+    // filesystem I/O) runs to completion before the next message is processed.
+    // The message emitter does not await async listeners, so without this a
+    // handler that suspends on `await` lets the next message's output print
+    // before the current one finishes.
+    let queue = Promise.resolve()
+
     script.message.connect(msg => {
-        if (msg.type === "error") {
-            console.error("[!] Agent error:", msg.stack)
-            return
-        }
+        queue = queue
+            .then(async () => {
+                if (msg.type === "error") {
+                    console.error("[!] Agent error:", msg.stack)
+                    return
+                }
 
-        const event = msg.payload as NtEvent
+                const event = msg.payload as NtEvent
+                const handler = new AgentEventHandler(event, { outputType: "raw" })
 
-        switch (event.fn) {
-            case "NtCreateFile":
-                handleNtCreateFile(event)
-                break
-            case "NtOpenFile":
-                handleNtOpenFile(event)
-                break
-            case "NtCreateUserProcess":
-                handleNtCreateUserProcess(event)
-                break
-            case "NtQueryAttributesFile":
-                handleNtQueryAttributesFile(event)
-                break
-            case "NtQueryFullAttributesFile":
-                handleNtQueryFullAttributesFile(event)
-                break
-            case "NtDeleteFile":
-                handleNtDeleteFile(event)
-                break
-            case "RtlSetCurrentDirectory_U":
-                handleRtlSetCurrentDirectory_U(event)
-                break
-            case "LdrLoadDll":
-                handleLdrLoadDll(event)
-                break
-        }
+                await handler.Run()
+            })
+            .catch(err => {
+                console.error("[!] Handler error:", err)
+            })
     })
 
     await script.load() // hook installed while frozen

@@ -43,3 +43,9 @@ NtOpenDirectoryObject       (nothing to do with the filesystem)
 NtCreateDirectoryObject     (nothing to do with the filesystem)
 NtCreateDirectoryObjectEx   (nothing to do with the filesystem)
 ```
+
+---
+
+## Article
+
+- What are the limitations of ProcMon? 
